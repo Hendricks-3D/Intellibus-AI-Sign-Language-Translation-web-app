@@ -17,72 +17,133 @@
 # For more information on the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # For more samples to get started with GitHub Action workflows to deploy to Azure: https://github.com/Azure/actions-workflow-samples
 
-name: Build and deploy Sign Sync to Azure Web App
 
-env:
-  AZURE_WEBAPP_NAME: sign-sync-service  # set this to the name of your Azure Web App
-  PYTHON_VERSION: '3.9.21'  # set this to the Python version to use
-  AZURE_WEBAPP_URL: 'https://sign-sync-service-hbf8fcfwfkhwdse7.centralus-01.azurewebsites.net'
+name: Build and deploy Python app to Azure Web App - sign-sync-service
 
 on:
+
   push:
-    branches: [ "master" ]  # Trigger on pushing to master branch
-  workflow_dispatch:  # Allow manual trigger from GitHub Actions UI
+
+    branches:
+
+      - master
+
+  workflow_dispatch:
+
 
 
 jobs:
+
   build:
+
     runs-on: ubuntu-latest
 
+    permissions:
+
+      contents: read #This is required for actions/checkout
+
+
+
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+
+
 
       - name: Set up Python version
-        uses: actions/setup-python@v4
+
+        uses: actions/setup-python@v5
+
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
+
+          python-version: '3.9'
+
+
 
       - name: Create and start virtual environment
+
         run: |
+
           python -m venv venv
+
           source venv/bin/activate
 
+      
+
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+
+        run: pip install -r requirements.txt
+
+        
 
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
-        
-      - name: Upload artifact for deployment job
+
+
+
+      - name: Zip artifact for deployment
+
+        run: zip release.zip ./* -r
+
+
+
+      - name: Upload artifact for deployment jobs
+
         uses: actions/upload-artifact@v4
+
         with:
-          name: ${{ env.AZURE_WEBAPP_NAME }}
-          path: ./
-          exclude: "venv/**"  # Exclude virtual environment folder
+
+          name: python-app
+
+          path: |
+
+            release.zip
+
+            !venv/
+
+
 
   deploy:
+
     runs-on: ubuntu-latest
-    needs: build  # Ensure this runs after the build job is successful
+
+    needs: build
+
     environment:
       name: 'Production'
-      url: ${{ env.AZURE_WEBAPP_URL }}
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    
 
     steps:
+
       - name: Download artifact from build job
+
         uses: actions/download-artifact@v4
-        with:
-          name: ${{ env.AZURE_WEBAPP_NAME }}
-          path: ./
 
-      - name: Deploy to Azure Web App
+        with:
+
+          name: python-app
+
+
+
+      - name: Unzip artifact for deployment
+
+        run: unzip release.zip
+
+
+
+      
+
+      - name: 'Deploy to Azure Web App'
+
+        uses: azure/webapps-deploy@v3
+
         id: deploy-to-webapp
-        uses: azure/webapps-deploy@v2
-        with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
 
-      - name: Success
-        run: echo "Deployed successfully to ${{ env.AZURE_WEBAPP_URL }}"
+        with:
+
+          app-name: 'sign-sync-service'
+
+          slot-name: 'Production'
+
+          publish-profile: ${{ secrets.AZURE_PUBLISH_PROFILE }}
